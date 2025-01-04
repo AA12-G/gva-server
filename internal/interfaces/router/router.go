@@ -52,6 +52,8 @@ func InitRouter(db *gorm.DB, rdb *redis.Client) *gin.Engine {
 		authorized.GET("/users", userHandler.ListUsers)
 		authorized.PUT("/users/:id/status", userHandler.UpdateUserStatus)
 		authorized.DELETE("/users/:id", userHandler.DeleteUser)
+		authorized.GET("/users/export", userHandler.ExportUsers)
+		authorized.POST("/users/import", userHandler.ImportUsers)
 
 		// 操作日志
 		authorized.GET("/logs", logHandler.ListLogs)

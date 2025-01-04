@@ -9,6 +9,11 @@ import (
 
 	"log"
 
+	"encoding/csv"
+	"fmt"
+	"io"
+	"math/rand"
+
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
@@ -43,14 +48,21 @@ func (s *UserService) Register(ctx context.Context, username, password string) e
 	// 获取默认角色
 	var defaultRole entity.Role
 	if err := s.db.Where("code = ?", "user").First(&defaultRole).Error; err != nil {
-		return err
+		// 如果找不到默认角色，创建一个
+		defaultRole = entity.Role{
+			Name: "普通用户",
+			Code: "user",
+		}
+		if err := s.db.Create(&defaultRole).Error; err != nil {
+			return err
+		}
 	}
 
 	user := &entity.User{
 		Username: username,
 		Password: string(hashedPassword),
 		Status:   1,
-		RoleID:   defaultRole.ID, // 设置默认角色ID
+		RoleID:   defaultRole.ID,
 	}
 
 	return s.userRepo.Create(ctx, user)
@@ -178,4 +190,69 @@ func (s *UserService) DeleteUser(ctx context.Context, userID uint) error {
 
 	// 删除缓存
 	return s.cache.DeleteUser(ctx, userID)
+}
+
+// ExportUsers 导出所有用户
+func (s *UserService) ExportUsers(ctx context.Context) ([]*entity.User, error) {
+	return s.userRepo.FindAll(ctx)
+}
+
+// ImportUsers 导入用户
+func (s *UserService) ImportUsers(ctx context.Context, reader io.Reader) ([]*entity.User, error) {
+	// 获取默认角色
+	var defaultRole entity.Role
+	if err := s.db.Where("code = ?", "user").First(&defaultRole).Error; err != nil {
+		// 如果找不到默认角色，创建一个
+		defaultRole = entity.Role{
+			Name: "普通用户",
+			Code: "user",
+		}
+		if err := s.db.Create(&defaultRole).Error; err != nil {
+			return nil, err
+		}
+	}
+
+	r := csv.NewReader(reader)
+	r.FieldsPerRecord = -1 // 允许字段数量不固定
+
+	// 跳过表头
+	if _, err := r.Read(); err != nil {
+		return nil, err
+	}
+
+	var users []*entity.User
+	for {
+		record, err := r.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+
+		if len(record) < 4 { // 至少需要用户名、昵称、邮箱、手机号
+			continue
+		}
+
+		// 生成随机密码
+		password := fmt.Sprintf("%08d", rand.Intn(100000000))
+		hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+
+		user := &entity.User{
+			Username: record[0],
+			Nickname: record[1],
+			Email:    record[2],
+			Phone:    record[3],
+			Password: string(hashedPassword),
+			Status:   1,              // 默认正常状态
+			RoleID:   defaultRole.ID, // 设置默认角色ID
+		}
+
+		if err := s.userRepo.Create(ctx, user); err != nil {
+			return nil, err
+		}
+		users = append(users, user)
+	}
+
+	return users, nil
 }

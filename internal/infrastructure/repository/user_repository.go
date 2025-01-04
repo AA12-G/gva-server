@@ -77,3 +77,9 @@ func (r *userRepository) List(ctx context.Context, page, size int, keyword strin
 
 	return users, total, nil
 }
+
+func (r *userRepository) FindAll(ctx context.Context) ([]*entity.User, error) {
+	var users []*entity.User
+	err := r.db.WithContext(ctx).Find(&users).Error
+	return users, err
+}

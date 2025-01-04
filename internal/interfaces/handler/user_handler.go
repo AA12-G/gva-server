@@ -6,8 +6,13 @@ import (
 	"gva/internal/pkg/jwt"
 	"gva/internal/pkg/upload"
 	"net/http"
+	"os"
+	"path"
+	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/spf13/viper"
 )
 
 type UserHandler struct {
@@ -274,4 +279,93 @@ func (h *UserHandler) DeleteUser(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "删除成功"})
+}
+
+// ExportUsers 导出用户列表
+func (h *UserHandler) ExportUsers(c *gin.Context) {
+	users, err := h.userService.ExportUsers(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// 使用配置的导出目录
+	exportDir := viper.GetString("export.dir")
+	if exportDir == "" {
+		exportDir = "storage/exports" // 默认目录
+	}
+
+	// 创建导出目录
+	if err := os.MkdirAll(exportDir, 0755); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建导出目录失败"})
+		return
+	}
+
+	// 生成文件名
+	filename := fmt.Sprintf("users_%s.csv", time.Now().Format("20060102_150405"))
+	filepath := path.Join(exportDir, filename)
+
+	// 创建文件
+	file, err := os.Create(filepath)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建文件失败"})
+		return
+	}
+	defer file.Close()
+
+	// 写入CSV头
+	file.Write([]byte("ID,用户名,昵称,邮箱,手机号,状态,创建时间\n"))
+
+	// 写入数据
+	for _, user := range users {
+		status := "正常"
+		if user.Status == 0 {
+			status = "禁用"
+		} else if user.Status == 2 {
+			status = "待审核"
+		}
+
+		line := fmt.Sprintf("%d,%s,%s,%s,%s,%s,%s\n",
+			user.ID, user.Username, user.Nickname, user.Email, user.Phone,
+			status, user.CreatedAt.Format("2006-01-02 15:04:05"))
+		file.Write([]byte(line))
+	}
+
+	// 返回文件
+	c.File(filepath)
+}
+
+// ImportUsers 导入用户
+func (h *UserHandler) ImportUsers(c *gin.Context) {
+	file, err := c.FormFile("file")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请选择要导入的文件"})
+		return
+	}
+
+	// 检查文件类型
+	if !strings.HasSuffix(file.Filename, ".csv") {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "只支持CSV文件"})
+		return
+	}
+
+	// 读取文件
+	f, err := file.Open()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	defer f.Close()
+
+	// 解析CSV
+	users, err := h.userService.ImportUsers(c.Request.Context(), f)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "导入成功",
+		"count":   len(users),
+	})
 }

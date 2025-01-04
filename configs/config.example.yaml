@@ -19,3 +19,11 @@ redis:
   port: 6379
   password: ""         # Redis密码，如果有的话
   db: 0               # 使用的数据库编号 
+
+# JWT配置
+jwt:
+  secret: "your-secret-key" # JWT密钥
+  expire: 24               # token过期时间（小时）
+
+export:
+  dir: "storage/exports"  # 导出文件存储目录 

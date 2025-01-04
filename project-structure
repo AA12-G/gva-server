@@ -1,25 +1,60 @@
-admin-system/
+gva-server/
 ├── cmd/
 │   └── server/
 │       └── main.go
+├── configs/
+│   ├── config.example.yaml
+│   └── config.yaml
 ├── internal/
 │   ├── domain/
 │   │   ├── entity/
+│   │   │   ├── user.go
+│   │   │   ├── role.go
+│   │   │   ├── permission.go
+│   │   │   └── operation_log.go
 │   │   ├── repository/
+│   │   │   └── user_repository.go
 │   │   └── service/
+│   │       ├── user_service.go
+│   │       └── operation_log_service.go
 │   ├── infrastructure/
+│   │   ├── cache/
+│   │   │   └── user_cache.go
 │   │   ├── config/
+│   │   │   └── config.go
 │   │   ├── database/
-│   │   └── redis/
+│   │   │   ├── migration.go
+│   │   │   ├── mysql.go
+│   │   │   └── test_helper.go
+│   │   ├── redis/
+│   │   │   └── redis.go
+│   │   └── repository/
+│   │       ├── user_repository.go
+│   │       └── operation_log_repository.go
 │   ├── interfaces/
 │   │   ├── handler/
-│   │   └── middleware/
-│   └── application/
-│       └── dto/
-├── pkg/
-│   ├── utils/
-│   └── errors/
-├── configs/
-│   └── config.yaml
+│   │   │   ├── user_handler.go
+│   │   │   ├── user_handler_test.go
+│   │   │   └── operation_log_handler.go
+│   │   ├── middleware/
+│   │   │   ├── auth.go
+│   │   │   └── operation_log.go
+│   │   └── router/
+│   │       └── router.go
+│   └── pkg/
+│       ├── config/
+│       │   └── mysql.go
+│       ├── jwt/
+│       │   └── jwt.go
+│       ├── testutil/
+│       │   └── db.go
+│       └── upload/
+│           └── upload.go
+├── storage/
+│   ├── exports/
+│   │   └── .gitkeep
+│   └── uploads/
+│       └── .gitkeep
 ├── go.mod
-└── docker-compose.yaml 
+├── go.sum
+└── README.md 

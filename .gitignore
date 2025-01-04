@@ -38,4 +38,10 @@ configs/*.yaml
 *.out
 
 # 上传的文件
-uploads/ 
+uploads/
+
+# Storage
+storage/exports/*
+storage/uploads/*
+!storage/exports/.gitkeep
+!storage/uploads/.gitkeep 

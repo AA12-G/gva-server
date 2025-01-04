@@ -7,13 +7,16 @@ import (
 	"gorm.io/gorm"
 )
 
-// AutoMigrate 自动迁移数据库表结构
+// AutoMigrate 自动迁移数据库
 func AutoMigrate(db *gorm.DB) error {
 	log.Println("开始迁移数据库...")
+
+	// 创建表
 	err := db.AutoMigrate(
 		&entity.Role{},
 		&entity.Permission{},
 		&entity.User{},
+		&entity.OperationLog{},
 	)
 	if err != nil {
 		return err
@@ -23,13 +26,17 @@ func AutoMigrate(db *gorm.DB) error {
 	var count int64
 	db.Model(&entity.Role{}).Count(&count)
 	if count == 0 {
-		defaultRole := &entity.Role{
-			Name:        "普通用户",
-			Code:        "user",
-			Description: "普通用户角色",
-			Status:      1,
+		roles := []entity.Role{
+			{
+				Name: "管理员",
+				Code: "admin",
+			},
+			{
+				Name: "普通用户",
+				Code: "user",
+			},
 		}
-		if err := db.Create(defaultRole).Error; err != nil {
+		if err := db.Create(&roles).Error; err != nil {
 			return err
 		}
 	}
