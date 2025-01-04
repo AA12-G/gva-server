@@ -21,29 +21,28 @@
 - **测试**: Go testing + testify
 
 ## 📁 项目结构
-
-\```bash
+```bash
 gva-server/
 ├── cmd/                # 主程序入口
 ├── configs/            # 配置文件
 ├── internal/           # 内部代码
-│   ├── domain/        # 领域层
-│   │   ├── entity/    # 实体定义
-│   │   ├── repository/# 仓储接口
-│   │   └── service/   # 领域服务
-│   ├── infrastructure/# 基础设施层
-│   │   ├── config/    # 配置管理
-│   │   ├── database/  # 数据库操作
-│   │   └── redis/     # Redis操作
-│   ├── interfaces/    # 接口层
-│   │   ├── handler/   # 请求处理器
-│   │   └── middleware/# 中间件
-│   └── application/   # 应用层
-│       └── dto/       # 数据传输对象
-└── pkg/               # 公共包
-    ├── jwt/          # JWT工具
-    └── utils/        # 通用工具
-\```
+│   ├── domain/         # 领域层
+│   │   ├── entity/     # 实体定义
+│   │   ├── repository/ # 仓储接口
+│   │   └── service/    # 领域服务
+│   ├── infrastructure/ # 基础设施层
+│   │   ├── config/     # 配置管理
+│   │   ├── database/   # 数据库操作
+│   │   └── redis/      # Redis操作
+│   ├── interfaces/     # 接口层
+│   │   ├── handler/    # 请求处理器
+│   │   └── middleware/ # 中间件
+│   └── application/    # 应用层
+│       └── dto/        # 数据传输对象
+└── pkg/                # 公共包
+    ├── jwt/           # JWT工具
+    └── utils/         # 通用工具
+```
 
 ## 🚀 快速开始
 
@@ -61,27 +60,27 @@ cd gva-server
 \```
 
 2. 安装依赖
-\```bash
+```bash
 go mod tidy
-\```
+```
 
 3. 配置环境
-\```bash
+```bash
 cp configs/config.example.yaml configs/config.yaml
 # 修改配置文件中的数据库和Redis连接信息
-\```
+```
 
 4. 运行项目
-\```bash
+```bash
 go run cmd/server/main.go
-\```
+```
 
 ## 📚 API 文档
 
 ### 用户模块
 
 #### 注册
-\```http
+```http
 POST /api/v1/register
 Content-Type: application/json
 
@@ -89,10 +88,10 @@ Content-Type: application/json
     "username": "testuser",
     "password": "password123"
 }
-\```
+```
 
 #### 登录
-\```http
+```http
 POST /api/v1/login
 Content-Type: application/json
 
@@ -100,7 +99,7 @@ Content-Type: application/json
     "username": "testuser",
     "password": "password123"
 }
-\```
+```
 
 ## ✨ 当前功能
 
@@ -136,14 +135,14 @@ Content-Type: application/json
 ## 🧪 测试
 
 运行所有测试：
-\```bash
+```bash
 go test ./...
-\```
+```
 
 运行特定测试：
-\```bash
+```bash
 go test ./internal/interfaces/handler -v
-\```
+```
 
 ## 📝 开发规范
 
@@ -153,7 +152,7 @@ go test ./internal/interfaces/handler -v
    - 添加必要的注释
 
 2. Git 提交规范
-   \```
+   ```
    feat: 添加新功能
    fix: 修复问题
    docs: 修改文档
@@ -161,7 +160,7 @@ go test ./internal/interfaces/handler -v
    refactor: 代码重构
    test: 添加测试
    chore: 修改构建过程或辅助工具
-   \```
+   ```
 
 ## 🤝 贡献指南
 
