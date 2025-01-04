@@ -5,6 +5,9 @@ import (
 	"errors"
 	"gva/internal/domain/entity"
 	"gva/internal/domain/repository"
+	"gva/internal/infrastructure/cache"
+
+	"log"
 
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
@@ -13,12 +16,14 @@ import (
 type UserService struct {
 	userRepo repository.UserRepository
 	db       *gorm.DB
+	cache    *cache.UserCache
 }
 
-func NewUserService(userRepo repository.UserRepository, db *gorm.DB) *UserService {
+func NewUserService(userRepo repository.UserRepository, db *gorm.DB, cache *cache.UserCache) *UserService {
 	return &UserService{
 		userRepo: userRepo,
 		db:       db,
+		cache:    cache,
 	}
 }
 
@@ -99,4 +104,46 @@ func (s *UserService) ResetPassword(ctx context.Context, userID uint, oldPasswor
 
 	user.Password = string(hashedPassword)
 	return s.userRepo.Update(ctx, user)
+}
+
+// UpdateAvatar 更新用户头像
+func (s *UserService) UpdateAvatar(ctx context.Context, userID uint, avatarPath string) error {
+	user, err := s.userRepo.FindByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+
+	user.Avatar = avatarPath
+	if err := s.userRepo.Update(ctx, user); err != nil {
+		return err
+	}
+
+	// 更新缓存
+	return s.cache.DeleteUser(ctx, userID)
+}
+
+// GetUserByID 获取用户信息（使用缓存）
+func (s *UserService) GetUserByID(ctx context.Context, id uint) (*entity.User, error) {
+	// 先从缓存获取
+	user, err := s.cache.GetUser(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if user != nil {
+		return user, nil
+	}
+
+	// 缓存未命中，从数据库获取
+	user, err = s.userRepo.FindByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	// 写入缓存
+	if err := s.cache.SetUser(ctx, user); err != nil {
+		// 这里只记录日志，不返回错误
+		log.Printf("缓存用户信息失败: %v", err)
+	}
+
+	return user, nil
 }

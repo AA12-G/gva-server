@@ -2,6 +2,7 @@ package router
 
 import (
 	"gva/internal/domain/service"
+	"gva/internal/infrastructure/cache"
 	"gva/internal/infrastructure/repository"
 	"gva/internal/interfaces/handler"
 	"gva/internal/interfaces/middleware"
@@ -14,9 +15,13 @@ import (
 func InitRouter(db *gorm.DB, rdb *redis.Client) *gin.Engine {
 	r := gin.Default()
 
+	// 配置静态文件服务
+	r.Static("/uploads", "./uploads")
+
 	// 初始化处理器
 	userRepo := repository.NewUserRepository(db)
-	userService := service.NewUserService(userRepo, db)
+	userCache := cache.NewUserCache(rdb)
+	userService := service.NewUserService(userRepo, db, userCache)
 	userHandler := handler.NewUserHandler(userService)
 
 	// 公开路由
@@ -32,6 +37,8 @@ func InitRouter(db *gorm.DB, rdb *redis.Client) *gin.Engine {
 	{
 		authorized.PUT("/user/profile", userHandler.UpdateProfile)
 		authorized.POST("/user/reset-password", userHandler.ResetPassword)
+		authorized.POST("/user/avatar", userHandler.UploadAvatar)
+		authorized.GET("/user/info", userHandler.GetUserInfo)
 	}
 
 	return r

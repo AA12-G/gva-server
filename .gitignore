@@ -35,4 +35,7 @@ configs/*.yaml
 *.test
 
 # Output of the go coverage tool
-*.out 
+*.out
+
+# 上传的文件
+uploads/ 

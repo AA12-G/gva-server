@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"gva/internal/domain/service"
 	"gva/internal/pkg/jwt"
+	"gva/internal/pkg/upload"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -130,4 +131,58 @@ func (h *UserHandler) ResetPassword(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "密码修改成功"})
+}
+
+// UploadAvatar 上传头像
+func (h *UserHandler) UploadAvatar(c *gin.Context) {
+	file, err := c.FormFile("avatar")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请选择要上传的文件"})
+		return
+	}
+
+	// 从上下文获取用户ID
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未认证"})
+		return
+	}
+
+	// 保存文件
+	filePath, err := upload.SaveUploadedFile(file)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// 更新用户头像
+	err = h.userService.UpdateAvatar(c.Request.Context(), userID.(uint), filePath)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "头像上传成功",
+		"avatar":  filePath,
+	})
+}
+
+// GetUserInfo 获取用户信息
+func (h *UserHandler) GetUserInfo(c *gin.Context) {
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未认证"})
+		return
+	}
+
+	user, err := h.userService.GetUserByID(c.Request.Context(), userID.(uint))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"user": user,
+	})
 }

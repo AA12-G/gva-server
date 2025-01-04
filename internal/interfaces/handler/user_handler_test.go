@@ -11,11 +11,13 @@ import (
 
 	"gva/internal/domain/entity"
 	"gva/internal/domain/service"
+	"gva/internal/infrastructure/cache"
 	"gva/internal/infrastructure/database"
 	"gva/internal/infrastructure/repository"
 	"gva/internal/pkg/testutil"
 
 	"github.com/gin-gonic/gin"
+	"github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -38,15 +40,25 @@ func setupTestRouter() (*gin.Engine, error) {
 		return nil, err
 	}
 
+	// 初始化 Redis 客户端
+	rdb := redis.NewClient(&redis.Options{
+		Addr: "localhost:6379",
+		DB:   0,
+	})
+
 	// 初始化路由
 	r := gin.Default()
 	userRepo := repository.NewUserRepository(db)
-	userService := service.NewUserService(userRepo, db)
+	userCache := cache.NewUserCache(rdb)
+	userService := service.NewUserService(userRepo, db, userCache)
 	userHandler := NewUserHandler(userService)
 
 	// 注册路由
 	r.POST("/api/v1/register", userHandler.Register)
 	r.POST("/api/v1/login", userHandler.Login)
+	r.PUT("/api/v1/user/profile", userHandler.UpdateProfile)
+	r.POST("/api/v1/user/reset-password", userHandler.ResetPassword)
+	r.POST("/api/v1/user/avatar", userHandler.UploadAvatar)
 
 	return r, nil
 }
@@ -77,7 +89,7 @@ func TestUserFlow(t *testing.T) {
 		assert.Equal(t, "注册成功", response["message"])
 
 		// 验证用户是否真的创建成功
-		db, err := database.GetTestDB()
+		db, err := testutil.GetTestDB()
 		assert.NoError(t, err)
 		var user entity.User
 		err = db.Where("username = ?", "testuser").First(&user).Error
