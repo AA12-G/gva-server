@@ -1,0 +1,38 @@
+# IDE
+.idea/
+.vscode/
+
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Output
+bin/
+tmp/
+
+# Dependency directories
+vendor/
+
+# Config files
+configs/*.yaml
+!configs/*.example.yaml
+
+# Log files
+*.log
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# macOS
+.DS_Store
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out 

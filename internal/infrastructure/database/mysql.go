@@ -4,21 +4,13 @@ import (
 	"fmt"
 	"time"
 
+	"gva/internal/pkg/config"
+
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 )
 
-type MySQLConfig struct {
-	Host         string `yaml:"host"`
-	Port         int    `yaml:"port"`
-	Username     string `yaml:"username"`
-	Password     string `yaml:"password"`
-	Database     string `yaml:"database"`
-	MaxIdleConns int    `yaml:"max_idle_conns"`
-	MaxOpenConns int    `yaml:"max_open_conns"`
-}
-
-func NewMySQLConnection(config MySQLConfig) (*gorm.DB, error) {
+func NewMySQLConnection(config config.MySQLConfig) (*gorm.DB, error) {
 	// 打印配置
 	fmt.Printf("MySQL config: %+v\n", config)
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8mb4&parseTime=True&loc=Local&allowNativePasswords=true",

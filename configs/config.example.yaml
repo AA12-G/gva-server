@@ -1,0 +1,21 @@
+# 服务器配置
+server:
+  port: 8080  # 服务端口
+  mode: debug # 运行模式：debug, release, test
+
+# MySQL数据库配置
+mysql:
+  host: 127.0.0.1
+  port: 3306
+  username: root
+  password: 123456     # 请修改为你的数据库密码
+  database: gva        # 数据库名称
+  max_idle_conns: 10   # 最大空闲连接数
+  max_open_conns: 100  # 最大打开连接数
+
+# Redis配置
+redis:
+  host: 127.0.0.1
+  port: 6379
+  password: ""         # Redis密码，如果有的话
+  db: 0               # 使用的数据库编号 
