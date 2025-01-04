@@ -20,7 +20,7 @@ func (r *userRepository) Create(ctx context.Context, user *entity.User) error {
 }
 
 func (r *userRepository) Update(ctx context.Context, user *entity.User) error {
-	return r.db.WithContext(ctx).Save(user).Error
+	return r.db.Save(user).Error
 }
 
 func (r *userRepository) Delete(ctx context.Context, id uint) error {
@@ -29,8 +29,7 @@ func (r *userRepository) Delete(ctx context.Context, id uint) error {
 
 func (r *userRepository) FindByID(ctx context.Context, id uint) (*entity.User, error) {
 	var user entity.User
-	err := r.db.WithContext(ctx).First(&user, id).Error
-	if err != nil {
+	if err := r.db.First(&user, id).Error; err != nil {
 		return nil, err
 	}
 	return &user, nil

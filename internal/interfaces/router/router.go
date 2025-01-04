@@ -30,7 +30,8 @@ func InitRouter(db *gorm.DB, rdb *redis.Client) *gin.Engine {
 	authorized := r.Group("/api/v1")
 	authorized.Use(middleware.JWTAuth())
 	{
-		// TODO: 添加需要认证的路由
+		authorized.PUT("/user/profile", userHandler.UpdateProfile)
+		authorized.POST("/user/reset-password", userHandler.ResetPassword)
 	}
 
 	return r

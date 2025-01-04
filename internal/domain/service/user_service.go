@@ -63,3 +63,40 @@ func (s *UserService) Login(ctx context.Context, username, password string) (*en
 
 	return user, nil
 }
+
+// UpdateProfile 更新用户信息
+func (s *UserService) UpdateProfile(ctx context.Context, userID uint, nickname, email, phone, avatar string) error {
+	user, err := s.userRepo.FindByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+
+	user.Nickname = nickname
+	user.Email = email
+	user.Phone = phone
+	user.Avatar = avatar
+
+	return s.userRepo.Update(ctx, user)
+}
+
+// ResetPassword 重置密码
+func (s *UserService) ResetPassword(ctx context.Context, userID uint, oldPassword, newPassword string) error {
+	user, err := s.userRepo.FindByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+
+	// 验证旧密码
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(oldPassword)); err != nil {
+		return errors.New("旧密码错误")
+	}
+
+	// 加密新密码
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+
+	user.Password = string(hashedPassword)
+	return s.userRepo.Update(ctx, user)
+}
