@@ -44,16 +44,33 @@ func (r *userRepository) FindByUsername(ctx context.Context, username string) (*
 	return &user, nil
 }
 
-func (r *userRepository) List(ctx context.Context, page, size int) ([]*entity.User, int64, error) {
+func (r *userRepository) List(ctx context.Context, page, size int, keyword string, status *int) ([]*entity.User, int64, error) {
 	var users []*entity.User
 	var total int64
 
-	err := r.db.WithContext(ctx).Model(&entity.User{}).Count(&total).Error
-	if err != nil {
+	db := r.db.WithContext(ctx)
+
+	// 构建查询条件
+	if keyword != "" {
+		db = db.Where("username = ? OR nickname LIKE ? OR email LIKE ?",
+			keyword, "%"+keyword+"%", "%"+keyword+"%")
+	}
+	if status != nil {
+		db = db.Where("status = ?", *status)
+	}
+
+	// 统计总数
+	if err := db.Model(&entity.User{}).Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
-	err = r.db.WithContext(ctx).Offset((page - 1) * size).Limit(size).Find(&users).Error
+	// 获取分页数据
+	err := db.Preload("Role"). // 预加载角色信息
+					Offset((page - 1) * size).
+					Limit(size).
+					Order("id DESC").
+					Find(&users).Error
+
 	if err != nil {
 		return nil, 0, err
 	}

@@ -186,3 +186,73 @@ func (h *UserHandler) GetUserInfo(c *gin.Context) {
 		"user": user,
 	})
 }
+
+// ListUsers 获取用户列表
+func (h *UserHandler) ListUsers(c *gin.Context) {
+	var req struct {
+		Page     int    `form:"page" binding:"omitempty,min=1"`
+		PageSize int    `form:"page_size" binding:"omitempty,min=1,max=100"`
+		Keyword  string `form:"keyword"`
+		Status   *int   `form:"status"`
+	}
+
+	if err := c.ShouldBindQuery(&req); err != nil {
+		fmt.Printf("验证错误: %v\n", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
+		return
+	}
+
+	// 设置默认值
+	if req.Page <= 0 {
+		req.Page = 1
+	}
+	if req.PageSize <= 0 {
+		req.PageSize = 10 // 默认每页10条
+	}
+
+	// 添加请求参数日志
+	fmt.Printf("查询参数: page=%d, pageSize=%d, keyword=%s, status=%v\n",
+		req.Page, req.PageSize, req.Keyword, req.Status)
+
+	users, total, err := h.userService.ListUsers(c.Request.Context(), req.Page, req.PageSize, req.Keyword, req.Status)
+	if err != nil {
+		fmt.Printf("查询错误: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// 添加结果日志
+	fmt.Printf("查询结果: 总数=%d, 返回记录数=%d\n", total, len(users))
+
+	c.JSON(http.StatusOK, gin.H{
+		"users": users,
+		"total": total,
+		"page":  req.Page,
+		"size":  req.PageSize,
+	})
+}
+
+// UpdateUserStatus 更新用户状态
+func (h *UserHandler) UpdateUserStatus(c *gin.Context) {
+	var req struct {
+		UserID uint `uri:"id" binding:"required"`
+		Status int  `json:"status" binding:"required,oneof=0 1 2"` // 0:禁用 1:正常 2:待审核
+	}
+
+	if err := c.ShouldBindUri(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "用户ID无效"})
+		return
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "状态参数无效"})
+		return
+	}
+
+	if err := h.userService.UpdateUserStatus(c.Request.Context(), req.UserID, req.Status); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "状态更新成功"})
+}

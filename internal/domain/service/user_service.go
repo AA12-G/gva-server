@@ -147,3 +147,24 @@ func (s *UserService) GetUserByID(ctx context.Context, id uint) (*entity.User, e
 
 	return user, nil
 }
+
+// ListUsers 获取用户列表
+func (s *UserService) ListUsers(ctx context.Context, page, pageSize int, keyword string, status *int) ([]*entity.User, int64, error) {
+	return s.userRepo.List(ctx, page, pageSize, keyword, status)
+}
+
+// UpdateUserStatus 更新用户状态
+func (s *UserService) UpdateUserStatus(ctx context.Context, userID uint, status int) error {
+	user, err := s.userRepo.FindByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+
+	user.Status = status
+	if err := s.userRepo.Update(ctx, user); err != nil {
+		return err
+	}
+
+	// 更新缓存
+	return s.cache.DeleteUser(ctx, userID)
+}

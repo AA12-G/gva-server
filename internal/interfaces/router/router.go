@@ -35,10 +35,15 @@ func InitRouter(db *gorm.DB, rdb *redis.Client) *gin.Engine {
 	authorized := r.Group("/api/v1")
 	authorized.Use(middleware.JWTAuth())
 	{
+		// 用户相关
 		authorized.PUT("/user/profile", userHandler.UpdateProfile)
 		authorized.POST("/user/reset-password", userHandler.ResetPassword)
 		authorized.POST("/user/avatar", userHandler.UploadAvatar)
 		authorized.GET("/user/info", userHandler.GetUserInfo)
+
+		// 用户管理
+		authorized.GET("/users", userHandler.ListUsers)
+		authorized.PUT("/users/:id/status", userHandler.UpdateUserStatus)
 	}
 
 	return r
