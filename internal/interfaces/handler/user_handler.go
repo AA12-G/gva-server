@@ -256,3 +256,22 @@ func (h *UserHandler) UpdateUserStatus(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "状态更新成功"})
 }
+
+// DeleteUser 删除用户（软删除）
+func (h *UserHandler) DeleteUser(c *gin.Context) {
+	var req struct {
+		UserID uint `uri:"id" binding:"required"`
+	}
+
+	if err := c.ShouldBindUri(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "用户ID无效"})
+		return
+	}
+
+	if err := h.userService.DeleteUser(c.Request.Context(), req.UserID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "删除成功"})
+}

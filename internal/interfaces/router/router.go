@@ -18,11 +18,18 @@ func InitRouter(db *gorm.DB, rdb *redis.Client) *gin.Engine {
 	// 配置静态文件服务
 	r.Static("/uploads", "./uploads")
 
-	// 初始化处理器
+	// 初始化服务
 	userRepo := repository.NewUserRepository(db)
 	userCache := cache.NewUserCache(rdb)
 	userService := service.NewUserService(userRepo, db, userCache)
 	userHandler := handler.NewUserHandler(userService)
+
+	logRepo := repository.NewOperationLogRepository(db)
+	logService := service.NewOperationLogService(logRepo)
+	logHandler := handler.NewOperationLogHandler(logService)
+
+	// 添加操作日志中间件
+	r.Use(middleware.OperationLog(logService))
 
 	// 公开路由
 	public := r.Group("/api/v1")
@@ -44,6 +51,10 @@ func InitRouter(db *gorm.DB, rdb *redis.Client) *gin.Engine {
 		// 用户管理
 		authorized.GET("/users", userHandler.ListUsers)
 		authorized.PUT("/users/:id/status", userHandler.UpdateUserStatus)
+		authorized.DELETE("/users/:id", userHandler.DeleteUser)
+
+		// 操作日志
+		authorized.GET("/logs", logHandler.ListLogs)
 	}
 
 	return r

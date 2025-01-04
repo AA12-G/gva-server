@@ -168,3 +168,14 @@ func (s *UserService) UpdateUserStatus(ctx context.Context, userID uint, status 
 	// 更新缓存
 	return s.cache.DeleteUser(ctx, userID)
 }
+
+// DeleteUser 删除用户（软删除）
+func (s *UserService) DeleteUser(ctx context.Context, userID uint) error {
+	// 使用 GORM 的软删除功能
+	if err := s.db.Delete(&entity.User{}, userID).Error; err != nil {
+		return err
+	}
+
+	// 删除缓存
+	return s.cache.DeleteUser(ctx, userID)
+}
