@@ -1,0 +1,25 @@
+admin-system/
+├── cmd/
+│   └── server/
+│       └── main.go
+├── internal/
+│   ├── domain/
+│   │   ├── entity/
+│   │   ├── repository/
+│   │   └── service/
+│   ├── infrastructure/
+│   │   ├── config/
+│   │   ├── database/
+│   │   └── redis/
+│   ├── interfaces/
+│   │   ├── handler/
+│   │   └── middleware/
+│   └── application/
+│       └── dto/
+├── pkg/
+│   ├── utils/
+│   └── errors/
+├── configs/
+│   └── config.yaml
+├── go.mod
+└── docker-compose.yaml 
