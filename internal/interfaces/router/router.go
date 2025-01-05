@@ -7,6 +7,9 @@ import (
 	"gva/internal/interfaces/handler"
 	"gva/internal/interfaces/middleware"
 
+	"time"
+
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
 	"gorm.io/gorm"
@@ -14,6 +17,16 @@ import (
 
 func InitRouter(db *gorm.DB, rdb *redis.Client) *gin.Engine {
 	r := gin.Default()
+
+	// 添加 CORS 中间件
+	r.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{"http://localhost:5173"}, // 允许前端域名
+		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
+		ExposeHeaders:    []string{"Content-Length"},
+		AllowCredentials: true,
+		MaxAge:           12 * time.Hour,
+	}))
 
 	// 配置静态文件服务
 	r.Static("/uploads", "./uploads")

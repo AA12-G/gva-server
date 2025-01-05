@@ -23,6 +23,12 @@ func (w responseWriter) Write(b []byte) (int, error) {
 // OperationLog 操作日志中间件
 func OperationLog(logService *service.OperationLogService) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// 跳过 OPTIONS 请求
+		if c.Request.Method == "OPTIONS" {
+			c.Next()
+			return
+		}
+
 		// 开始时间
 		startTime := time.Now()
 
@@ -40,12 +46,15 @@ func OperationLog(logService *service.OperationLogService) gin.HandlerFunc {
 		// 处理请求
 		c.Next()
 
-		// 获取用户ID
-		userID, _ := c.Get("userID")
+		// 获取用户ID，如果未登录则为0
+		var userID uint = 0
+		if id, exists := c.Get("userID"); exists {
+			userID = id.(uint)
+		}
 
 		// 创建日志记录
 		log := &entity.OperationLog{
-			UserID:    userID.(uint),
+			UserID:    userID,
 			IP:        c.ClientIP(),
 			Method:    c.Request.Method,
 			Path:      c.Request.URL.Path,
