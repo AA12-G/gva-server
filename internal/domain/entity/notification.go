@@ -1,6 +1,10 @@
 package entity
 
-import "gorm.io/gorm"
+import (
+	"time"
+
+	"gorm.io/gorm"
+)
 
 // Notification 通知
 type Notification struct {
@@ -17,8 +21,8 @@ type Notification struct {
 // UserNotification 用户通知关联
 type UserNotification struct {
 	gorm.Model
-	UserID         uint  `json:"user_id"`                      // 用户ID
-	NotificationID uint  `json:"notification_id"`              // 通知ID
-	ReadStatus     int   `gorm:"default:0" json:"read_status"` // 阅读状态
-	ReadTime       *Time `json:"read_time"`                    // 阅读时间
+	UserID         uint       `json:"user_id"`                      // 用户ID
+	NotificationID uint       `json:"notification_id"`              // 通知ID
+	ReadStatus     int        `gorm:"default:0" json:"read_status"` // 阅读状态
+	ReadTime       *time.Time `json:"read_time"`                    // 阅读时间
 }

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"gva/internal/domain/entity"
 
 	"gorm.io/gorm"
@@ -46,6 +47,47 @@ func (s *RoleService) AssignPermissions(ctx context.Context, roleID uint, permis
 		}
 		return nil
 	})
+}
+
+// GetAllRoles 获取所有角色列表
+func (s *RoleService) GetAllRoles(ctx context.Context) ([]entity.Role, error) {
+	var roles []entity.Role
+
+	// 查询所有未删除的角色，并按sort和id排序
+	err := s.db.Model(&entity.Role{}).
+		Where("deleted_at IS NULL").
+		Order("sort ASC, id ASC").
+		Find(&roles).Error
+
+	if err != nil {
+		return nil, fmt.Errorf("查询角色列表失败: %v", err)
+	}
+
+	return roles, nil
+}
+
+// GetRoleByID 通过ID获取角色
+func (s *RoleService) GetRoleByID(ctx context.Context, id uint) (*entity.Role, error) {
+	var role entity.Role
+	if err := s.db.First(&role, id).Error; err != nil {
+		return nil, fmt.Errorf("获取角色失败: %v", err)
+	}
+	return &role, nil
+}
+
+// CreateRole 创建角色
+func (s *RoleService) CreateRole(ctx context.Context, role *entity.Role) error {
+	return s.db.Create(role).Error
+}
+
+// UpdateRole 更新角色
+func (s *RoleService) UpdateRole(ctx context.Context, id uint, role *entity.Role) error {
+	return s.db.Model(&entity.Role{}).Where("id = ?", id).Updates(role).Error
+}
+
+// DeleteRole 删除角色
+func (s *RoleService) DeleteRole(ctx context.Context, id uint) error {
+	return s.db.Delete(&entity.Role{}, id).Error
 }
 
 // TODO: 添加角色相关的业务逻辑

@@ -19,14 +19,9 @@ func main() {
 	}
 
 	// 初始化数据库连接
-	db, err := database.NewMySQLConnection(cfg.MySQL)
+	db, err := database.InitDB(&cfg.MySQL)
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
-	}
-
-	// 执行数据库迁移
-	if err := database.AutoMigrate(db); err != nil {
-		log.Fatalf("Failed to migrate database: %v", err)
+		log.Fatalf("初始化数据库失败: %v", err)
 	}
 
 	sqlDB, err := db.DB()

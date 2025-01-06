@@ -18,6 +18,11 @@ import (
 func InitRouter(db *gorm.DB, rdb *redis.Client) *gin.Engine {
 	r := gin.Default()
 
+	// 添加路由日志
+	r.Use(gin.LoggerWithConfig(gin.LoggerConfig{
+		SkipPaths: []string{"/health"},
+	}))
+
 	// 添加 CORS 中间件
 	r.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{"*"}, // 允许所有来源，生产环境应该设置具体域名
@@ -69,20 +74,24 @@ func InitRouter(db *gorm.DB, rdb *redis.Client) *gin.Engine {
 	authorized.Use(middleware.JWTAuth())
 	{
 		// 基础功能（不需要额外权限）
-		authorized.GET("/user/info", userHandler.GetUserInfo)
-		authorized.PUT("/user/profile", userHandler.UpdateProfile)
-		authorized.POST("/user/reset-password", userHandler.ResetPassword)
-		authorized.POST("/user/avatar", userHandler.UploadAvatar)
+		userBase := authorized.Group("/user")
+		{
+			userBase.GET("/info", userHandler.GetUserInfo)
+			userBase.GET("/role", userHandler.GetUserRole)
+			userBase.PUT("/profile", userHandler.UpdateProfile)
+			userBase.POST("/reset-password", userHandler.ResetPassword)
+			userBase.POST("/avatar", userHandler.UploadAvatar)
+		}
 
 		// 用户管理相关（需要用户管理权限）
-		userManage := authorized.Group("")
+		userManage := authorized.Group("/users")
 		userManage.Use(middleware.CheckPermission("system:user"))
 		{
-			userManage.GET("/users", userHandler.ListUsers)
-			userManage.PUT("/users/:id/status", userHandler.UpdateUserStatus)
-			userManage.DELETE("/users/:id", userHandler.DeleteUser)
-			userManage.GET("/users/export", userHandler.ExportUsers)
-			userManage.POST("/users/import", userHandler.ImportUsers)
+			userManage.GET("", userHandler.ListUsers)
+			userManage.PUT("/:id/status", userHandler.UpdateUserStatus)
+			userManage.DELETE("/:id", userHandler.DeleteUser)
+			userManage.GET("/export", userHandler.ExportUsers)
+			userManage.POST("/import", userHandler.ImportUsers)
 		}
 
 		// 权限管理相关（需要权限管理权限）
@@ -96,12 +105,19 @@ func InitRouter(db *gorm.DB, rdb *redis.Client) *gin.Engine {
 		}
 
 		// 角色权限管理
-		roleManage := authorized.Group("")
+		roleManage := authorized.Group("/roles")
 		roleManage.Use(middleware.CheckPermission("system:role"))
 		{
-			roleManage.GET("/roles/:id/permissions", roleHandler.GetPermissions)
-			roleManage.POST("/roles/:id/permissions", roleHandler.AssignPermissions)
+			roleManage.GET("", roleHandler.GetRoleList)                        // 获取角色列表
+			roleManage.GET("/:id", roleHandler.GetRole)                        // 获取单个角色
+			roleManage.POST("", roleHandler.CreateRole)                        // 创建角色
+			roleManage.PUT("/:id", roleHandler.UpdateRole)                     // 更新角色
+			roleManage.DELETE("/:id", roleHandler.DeleteRole)                  // 删除角色
+			roleManage.GET("/:id/permissions", roleHandler.GetPermissions)     // 获取角色权限
+			roleManage.POST("/:id/permissions", roleHandler.AssignPermissions) // 分配权限
 		}
+
+
 
 		// 日志管理（需要日志查看权限）
 		logManage := authorized.Group("")

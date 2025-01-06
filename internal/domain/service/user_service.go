@@ -6,6 +6,8 @@ import (
 	"gva/internal/domain/entity"
 	"gva/internal/domain/repository"
 	"gva/internal/infrastructure/cache"
+	"gva/internal/pkg/jwt"
+	"gva/internal/pkg/utils"
 
 	"log"
 
@@ -16,6 +18,14 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
+)
+
+// 定义登录相关的错误
+var (
+	ErrUserNotFound    = errors.New("用户不存在")
+	ErrUserDisabled    = errors.New("用户已被禁用")
+	ErrIncorrectPass   = errors.New("密码错误")
+	ErrUserNotVerified = errors.New("用户未通过审核")
 )
 
 type UserService struct {
@@ -68,17 +78,49 @@ func (s *UserService) Register(ctx context.Context, username, password string) e
 	return s.userRepo.Create(ctx, user)
 }
 
-func (s *UserService) Login(ctx context.Context, username, password string) (*entity.User, error) {
+// Login 用户登录
+func (s *UserService) Login(ctx context.Context, username, password string) (*entity.User, string, error) {
+	// 缓存未命中，从数据库查询
 	user, err := s.userRepo.FindByUsername(ctx, username)
 	if err != nil {
-		return nil, errors.New("用户名或密码错误")
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, "", ErrUserNotFound
+		}
+		return nil, "", fmt.Errorf("查询用户失败: %v", err)
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err != nil {
-		return nil, errors.New("用户名或密码错误")
+	// 将用户信息存入缓存
+	if err := s.cache.SetUser(ctx, user); err != nil {
+		log.Printf("缓存用户信息失败: %v", err)
 	}
 
-	return user, nil
+	// 检查用户状态
+	switch user.Status {
+	case 0:
+		return nil, "", ErrUserDisabled
+	case 2:
+		return nil, "", ErrUserNotVerified
+	}
+
+	fmt.Println("user.Password", user.Password)
+
+	// 验证密码
+	if !utils.CheckPassword(password, user.Password) {
+		return nil, "", ErrIncorrectPass
+	}
+
+	// 生成token
+	token, err := jwt.GenerateToken(user.ID)
+	if err != nil {
+		return nil, "", fmt.Errorf("生成token失败: %v", err)
+	}
+
+	// 预加载角色信息
+	if err := s.db.Preload("Role").First(user, user.ID).Error; err != nil {
+		return nil, "", fmt.Errorf("加载用户角色失败: %v", err)
+	}
+
+	return user, token, nil
 }
 
 // UpdateProfile 更新用户信息
@@ -131,13 +173,13 @@ func (s *UserService) UpdateAvatar(ctx context.Context, userID uint, avatarPath 
 	}
 
 	// 更新缓存
-	return s.cache.DeleteUser(ctx, userID)
+	return s.cache.DeleteUserByID(ctx, userID)
 }
 
 // GetUserByID 获取用户信息（使用缓存）
 func (s *UserService) GetUserByID(ctx context.Context, id uint) (*entity.User, error) {
 	// 先从缓存获取
-	user, err := s.cache.GetUser(ctx, id)
+	user, err := s.cache.GetUserByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -178,18 +220,28 @@ func (s *UserService) UpdateUserStatus(ctx context.Context, userID uint, status 
 	}
 
 	// 更新缓存
-	return s.cache.DeleteUser(ctx, userID)
+	return s.cache.DeleteUserByID(ctx, userID)
 }
 
 // DeleteUser 删除用户（软删除）
 func (s *UserService) DeleteUser(ctx context.Context, userID uint) error {
+	// 先获取用户信息，用于删除缓存
+	_, err := s.userRepo.FindByID(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("用户不存在: %v", err)
+	}
+
 	// 使用 GORM 的软删除功能
 	if err := s.db.Delete(&entity.User{}, userID).Error; err != nil {
-		return err
+		return fmt.Errorf("删除用户失败: %v", err)
 	}
 
 	// 删除缓存
-	return s.cache.DeleteUser(ctx, userID)
+	if err := s.cache.DeleteUserByID(ctx, userID); err != nil {
+		log.Printf("删除用户缓存失败: %v", err)
+	}
+
+	return nil
 }
 
 // ExportUsers 导出所有用户
@@ -255,4 +307,20 @@ func (s *UserService) ImportUsers(ctx context.Context, reader io.Reader) ([]*ent
 	}
 
 	return users, nil
+}
+
+// GetUserWithRole 获取用户信息（包含角色和权限）
+func (s *UserService) GetUserWithRole(ctx context.Context, userID uint) (*entity.User, error) {
+	var user entity.User
+	err := s.db.Preload("Role").
+		Preload("Role.Permissions").
+		First(&user, userID).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrUserNotFound
+		}
+		return nil, fmt.Errorf("查询用户失败: %v", err)
+	}
+
+	return &user, nil
 }

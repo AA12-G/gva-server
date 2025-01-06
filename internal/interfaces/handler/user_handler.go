@@ -1,9 +1,9 @@
 package handler
 
 import (
+	"errors"
 	"fmt"
 	"gva/internal/domain/service"
-	"gva/internal/pkg/jwt"
 	"gva/internal/pkg/upload"
 	"net/http"
 	"os"
@@ -50,27 +50,56 @@ func (h *UserHandler) Login(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请输入用户名和密码"})
 		return
 	}
 
-	user, err := h.userService.Login(c.Request.Context(), req.Username, req.Password)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
-		return
-	}
+	fmt.Print("user.Password", req.Password)
 
-	// 生成JWT token
-	token, err := jwt.GenerateToken(user.ID)
+	user, token, err := h.userService.Login(c.Request.Context(), req.Username, req.Password)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "生成token失败"})
+		var statusCode int
+		var message string
+
+		switch {
+		case errors.Is(err, service.ErrUserNotFound):
+			statusCode = http.StatusNotFound
+			message = "用户不存在"
+		case errors.Is(err, service.ErrUserDisabled):
+			statusCode = http.StatusForbidden
+			message = "用户已被禁用"
+		case errors.Is(err, service.ErrUserNotVerified):
+			statusCode = http.StatusForbidden
+			message = "用户未通过审核"
+		case errors.Is(err, service.ErrIncorrectPass):
+			statusCode = http.StatusUnauthorized
+			message = "密码错误"
+		default:
+			statusCode = http.StatusInternalServerError
+			message = "登录失败，请稍后重试"
+		}
+
+		c.JSON(statusCode, gin.H{"error": message})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "登录成功",
-		"user":    user,
 		"token":   token,
+		"user": gin.H{
+			"id":       user.ID,
+			"username": user.Username,
+			"nickname": user.Nickname,
+			"email":    user.Email,
+			"phone":    user.Phone,
+			"avatar":   user.Avatar,
+			"status":   user.Status,
+			"role": gin.H{
+				"id":   user.Role.ID,
+				"name": user.Role.Name,
+				"code": user.Role.Code,
+			},
+		},
 	})
 }
 
@@ -173,22 +202,42 @@ func (h *UserHandler) UploadAvatar(c *gin.Context) {
 	})
 }
 
-// GetUserInfo 获取用户信息
+// GetUserInfo 获取当前用户信息
 func (h *UserHandler) GetUserInfo(c *gin.Context) {
+	// 从上下文获取用户ID
 	userID, exists := c.Get("userID")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "未认证"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未找到用户信息"})
 		return
 	}
 
-	user, err := h.userService.GetUserByID(c.Request.Context(), userID.(uint))
+	// 获取用户信息（包含角色）
+	user, err := h.userService.GetUserWithRole(c.Request.Context(), userID.(uint))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("获取用户信息失败: %v", err)})
 		return
 	}
 
+	// 返回用户信息
 	c.JSON(http.StatusOK, gin.H{
-		"user": user,
+		"code": http.StatusOK,
+		"data": gin.H{
+			"user": gin.H{
+				"id":       user.ID,
+				"username": user.Username,
+				"nickname": user.Nickname,
+				"email":    user.Email,
+				"phone":    user.Phone,
+				"avatar":   user.Avatar,
+				"status":   user.Status,
+				"role": gin.H{
+					"id":          user.Role.ID,
+					"name":        user.Role.Name,
+					"code":        user.Role.Code,
+					"permissions": user.Role.Permissions,
+				},
+			},
+		},
 	})
 }
 
@@ -367,5 +416,35 @@ func (h *UserHandler) ImportUsers(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message": "导入成功",
 		"count":   len(users),
+	})
+}
+
+// GetUserRole 获取用户角色信息
+func (h *UserHandler) GetUserRole(c *gin.Context) {
+	// 从上下文获取用户ID
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未找到角色信息"})
+		return
+	}
+
+	// 获取用户信息（包含角色）
+	user, err := h.userService.GetUserWithRole(c.Request.Context(), userID.(uint))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("获取角色信息失败: %v", err)})
+		return
+	}
+
+	// 返回角色信息
+	c.JSON(http.StatusOK, gin.H{
+		"code": http.StatusOK,
+		"data": gin.H{
+			"role": gin.H{
+				"id":          user.Role.ID,
+				"name":        user.Role.Name,
+				"code":        user.Role.Code,
+				"permissions": user.Role.Permissions,
+			},
+		},
 	})
 }
