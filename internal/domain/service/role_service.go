@@ -56,7 +56,7 @@ func (s *RoleService) GetAllRoles(ctx context.Context) ([]entity.Role, error) {
 	// 查询所有未删除的角色，并按sort和id排序
 	err := s.db.Model(&entity.Role{}).
 		Where("deleted_at IS NULL").
-		Order("sort ASC, id ASC").
+		Order("id ASC").
 		Find(&roles).Error
 
 	if err != nil {

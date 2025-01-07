@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"gva/internal/domain/service"
 	"gva/internal/pkg/upload"
+	"log"
 	"net/http"
 	"os"
 	"path"
+	"strconv"
 	"strings"
 	"time"
 
@@ -288,22 +290,29 @@ func (h *UserHandler) ListUsers(c *gin.Context) {
 
 // UpdateUserStatus 更新用户状态
 func (h *UserHandler) UpdateUserStatus(c *gin.Context) {
-	var req struct {
-		UserID uint `uri:"id" binding:"required"`
-		Status int  `json:"status" binding:"required,oneof=0 1 2"` // 0:禁用 1:正常 2:待审核
-	}
-
-	if err := c.ShouldBindUri(&req); err != nil {
+	// 先获取路径参数
+	userID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		log.Printf("解析用户ID失败: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "用户ID无效"})
 		return
 	}
 
+	// 再获取请求体
+	var req struct {
+		Status int `json:"status" binding:"required,oneof=0 1 2"`
+	}
+
 	if err := c.ShouldBindJSON(&req); err != nil {
+		log.Printf("绑定状态参数失败: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "状态参数无效"})
 		return
 	}
 
-	if err := h.userService.UpdateUserStatus(c.Request.Context(), req.UserID, req.Status); err != nil {
+	log.Printf("准备更新用户状态 - UserID: %d, Status: %d", userID, req.Status)
+
+	if err := h.userService.UpdateUserStatus(c.Request.Context(), uint(userID), req.Status); err != nil {
+		log.Printf("更新用户状态失败: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

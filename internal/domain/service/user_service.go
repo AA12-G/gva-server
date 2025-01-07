@@ -209,18 +209,26 @@ func (s *UserService) ListUsers(ctx context.Context, page, pageSize int, keyword
 
 // UpdateUserStatus 更新用户状态
 func (s *UserService) UpdateUserStatus(ctx context.Context, userID uint, status int) error {
-	user, err := s.userRepo.FindByID(ctx, userID)
-	if err != nil {
-		return err
+	log.Printf("开始更新用户状态 - UserID: %d, Status: %d", userID, status)
+
+	var user entity.User
+	if err := s.db.First(&user, userID).Error; err != nil {
+		log.Printf("查询用户失败 - UserID: %d, Error: %v", userID, err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("用户不存在")
+		}
+		return fmt.Errorf("查询用户失败: %v", err)
 	}
 
-	user.Status = status
-	if err := s.userRepo.Update(ctx, user); err != nil {
-		return err
+	log.Printf("找到用户 - UserID: %d, Username: %s", user.ID, user.Username)
+
+	if err := s.db.Model(&user).Update("status", status).Error; err != nil {
+		log.Printf("更新状态失败 - UserID: %d, Error: %v", userID, err)
+		return fmt.Errorf("更新状态失败: %v", err)
 	}
 
-	// 更新缓存
-	return s.cache.DeleteUserByID(ctx, userID)
+	log.Printf("更新状态成功 - UserID: %d, NewStatus: %d", userID, status)
+	return nil
 }
 
 // DeleteUser 删除用户（软删除）
