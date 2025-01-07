@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"fmt"
+	"log"
 
 	"gorm.io/gorm"
 
@@ -38,4 +40,21 @@ func (s *PermissionService) HasPermission(ctx context.Context, userID uint, perm
 		Where("users.id = ? AND permissions.code = ? AND permissions.status = 1", userID, permissionCode).
 		Count(&count)
 	return count > 0
+}
+
+// GetAllPermissions 获取所有权限
+func (s *PermissionService) GetAllPermissions(ctx context.Context) ([]entity.Permission, error) {
+	var permissions []entity.Permission
+
+	err := s.db.Model(&entity.Permission{}).
+		Where("deleted_at IS NULL").
+		Order("sort ASC, id ASC").
+		Find(&permissions).Error
+
+	if err != nil {
+		log.Printf("查询权限列表失败: %v", err)
+		return nil, fmt.Errorf("查询权限列表失败: %v", err)
+	}
+
+	return permissions, nil
 }

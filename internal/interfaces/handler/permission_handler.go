@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"gva/internal/domain/entity"
 	"gva/internal/domain/service"
 	"net/http"
@@ -19,12 +20,17 @@ func NewPermissionHandler(permissionService *service.PermissionService) *Permiss
 
 // List 获取权限列表
 func (h *PermissionHandler) List(c *gin.Context) {
-	permissions, err := h.permissionService.GetUserPermissions(c.Request.Context(), 0) // 0表示获取所有权限
+	permissions, err := h.permissionService.GetAllPermissions(c.Request.Context())
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("获取权限列表失败: %v", err),
+		})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"permissions": permissions})
+
+	c.JSON(http.StatusOK, gin.H{
+		"permissions": permissions,
+	})
 }
 
 // Create 创建权限
