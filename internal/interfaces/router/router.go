@@ -2,7 +2,6 @@ package router
 
 import (
 	"gva/internal/domain/service"
-	"gva/internal/infrastructure/cache"
 	"gva/internal/infrastructure/repository"
 	"gva/internal/interfaces/handler"
 	"gva/internal/interfaces/middleware"
@@ -15,7 +14,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func InitRouter(db *gorm.DB, rdb *redis.Client) *gin.Engine {
+func InitRouter(db *gorm.DB, rdb *redis.Client, userService *service.UserService) *gin.Engine {
 	r := gin.Default()
 
 	// 添加路由日志
@@ -36,12 +35,8 @@ func InitRouter(db *gorm.DB, rdb *redis.Client) *gin.Engine {
 	// 配置静态文件服务
 	r.Static("/uploads", "./uploads")
 
-	// 初始化服务
-	userRepo := repository.NewUserRepository(db)
-	userCache := cache.NewUserCache(rdb)
-	userService := service.NewUserService(userRepo, db, userCache)
+	// 初始化处理器
 	userHandler := handler.NewUserHandler(userService)
-
 	logRepo := repository.NewOperationLogRepository(db)
 	logService := service.NewOperationLogService(logRepo)
 	logHandler := handler.NewOperationLogHandler(logService)
@@ -88,7 +83,9 @@ func InitRouter(db *gorm.DB, rdb *redis.Client) *gin.Engine {
 		userManage.Use(middleware.CheckPermission("system:user"))
 		{
 			userManage.GET("", userHandler.ListUsers)
-			userManage.PUT("/:id/status", userHandler.UpdateUserStatus)
+			userManage.GET("/:id/profile", userHandler.GetUserProfile)  // 获取指定用户信息
+			userManage.PUT("/:id/profile", userHandler.UpdateUser)      // 更新指定用户信息
+			userManage.PUT("/:id/status", userHandler.UpdateUserStatus) // 修改指定用户状态
 			userManage.DELETE("/:id", userHandler.DeleteUser)
 			userManage.GET("/export", userHandler.ExportUsers)
 			userManage.POST("/import", userHandler.ImportUsers)
@@ -116,8 +113,6 @@ func InitRouter(db *gorm.DB, rdb *redis.Client) *gin.Engine {
 			roleManage.GET("/:id/permissions", roleHandler.GetPermissions)     // 获取角色权限
 			roleManage.POST("/:id/permissions", roleHandler.AssignPermissions) // 分配权限
 		}
-
-
 
 		// 日志管理（需要日志查看权限）
 		logManage := authorized.Group("")

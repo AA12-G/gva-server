@@ -1,43 +1,29 @@
 package config
 
 import (
-	"gva/internal/infrastructure/redis"
-	"os"
-
 	"gva/internal/pkg/config"
 
-	"gopkg.in/yaml.v3"
+	"github.com/spf13/viper"
 )
 
-// JWTConfig JWT配置
-type JWTConfig struct {
-	Secret string `yaml:"secret"`
-	Expire int    `yaml:"expire"` // token过期时间（小时）
-}
-
 type Config struct {
-	Server struct {
-		Port string `yaml:"port"`
-		Mode string `yaml:"mode"`
-	} `yaml:"server"`
-	MySQL  config.MySQLConfig `yaml:"mysql"`
-	Redis  redis.RedisConfig  `yaml:"redis"`
-	JWT    JWTConfig          `yaml:"jwt"`
-	Export struct {
-		Dir string `yaml:"dir"`
-	} `yaml:"export"`
+	Server config.ServerConfig `mapstructure:"server"`
+	MySQL  config.MySQLConfig  `mapstructure:"mysql"`
+	Redis  config.RedisConfig  `mapstructure:"redis"`
+	JWT    config.JWTConfig    `mapstructure:"jwt"`
+	Export config.ExportConfig `mapstructure:"export"`
 }
 
-func Load() (*Config, error) {
-	var config Config
-	data, err := os.ReadFile("configs/config.yaml")
-	if err != nil {
+func LoadConfig(file string) (*Config, error) {
+	viper.SetConfigFile(file)
+	if err := viper.ReadInConfig(); err != nil {
 		return nil, err
 	}
 
-	if err := yaml.Unmarshal(data, &config); err != nil {
+	var cfg Config
+	if err := viper.Unmarshal(&cfg); err != nil {
 		return nil, err
 	}
 
-	return &config, nil
+	return &cfg, nil
 }

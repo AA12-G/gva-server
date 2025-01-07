@@ -56,7 +56,7 @@ func (h *UserHandler) Login(c *gin.Context) {
 		return
 	}
 
-	fmt.Print("user.Password", req.Password)
+	fmt.Print("11user.Password", req.Password)
 
 	user, token, err := h.userService.Login(c.Request.Context(), req.Username, req.Password)
 	if err != nil {
@@ -76,6 +76,9 @@ func (h *UserHandler) Login(c *gin.Context) {
 		case errors.Is(err, service.ErrIncorrectPass):
 			statusCode = http.StatusUnauthorized
 			message = "密码错误"
+		case errors.Is(err, service.ErrUserFrozen):
+			statusCode = http.StatusForbidden
+			message = "您的账号已被冻结，请联系客服"
 		default:
 			statusCode = http.StatusInternalServerError
 			message = "登录失败，请稍后重试"
@@ -108,15 +111,18 @@ func (h *UserHandler) Login(c *gin.Context) {
 // UpdateProfile 更新用户信息
 func (h *UserHandler) UpdateProfile(c *gin.Context) {
 	var req struct {
+		Username string `json:"username" binding:"required,min=2,max=32"`
 		Nickname string `json:"nickname"`
 		Email    string `json:"email" binding:"omitempty,email"`
 		Phone    string `json:"phone" binding:"omitempty,numeric,len=11"`
-		Avatar   string `json:"avatar"`
+		RoleID   uint   `json:"role_id"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		var errMsg string
 		switch {
+		case strings.Contains(err.Error(), "'Username' Error:Field validation"):
+			errMsg = "用户名长度必须在2-32个字符之间"
 		case err.Error() == "Key: 'Phone' Error:Field validation for 'Phone' failed on the 'len' tag":
 			errMsg = "手机号必须是11位数字"
 		case err.Error() == "Key: 'Phone' Error:Field validation for 'Phone' failed on the 'numeric' tag":
@@ -126,7 +132,7 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 		default:
 			errMsg = "参数错误"
 		}
-		fmt.Printf("验证错误: %v\n", err)
+		log.Printf("验证错误: %v\n", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": errMsg})
 		return
 	}
@@ -138,7 +144,16 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 		return
 	}
 
-	err := h.userService.UpdateProfile(c.Request.Context(), userID.(uint), req.Nickname, req.Email, req.Phone, req.Avatar)
+	// 调用更新服务
+	err := h.userService.UpdateProfile(
+		c.Request.Context(),
+		userID.(uint),
+		req.Username,
+		req.Nickname,
+		req.Email,
+		req.Phone,
+		req.RoleID,
+	)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -455,5 +470,103 @@ func (h *UserHandler) GetUserRole(c *gin.Context) {
 				"permissions": user.Role.Permissions,
 			},
 		},
+	})
+}
+
+// UpdateUser 更新指定用户信息
+func (h *UserHandler) UpdateUser(c *gin.Context) {
+	// 获取路径参数中的用户ID
+	userID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的用户ID"})
+		return
+	}
+
+	var req struct {
+		Username string `json:"username" binding:"required,min=2,max=32"`
+		Nickname string `json:"nickname"`
+		Email    string `json:"email" binding:"omitempty,email"`
+		Phone    string `json:"phone" binding:"omitempty,numeric,len=11"`
+		RoleID   uint   `json:"role_id"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		var errMsg string
+		switch {
+		case strings.Contains(err.Error(), "'Username' Error:Field validation"):
+			errMsg = "用户名长度必须在2-32个字符之间"
+		case err.Error() == "Key: 'Phone' Error:Field validation for 'Phone' failed on the 'len' tag":
+			errMsg = "手机号必须是11位数字"
+		case err.Error() == "Key: 'Phone' Error:Field validation for 'Phone' failed on the 'numeric' tag":
+			errMsg = "手机号只能包含数字"
+		case err.Error() == "Key: 'Email' Error:Field validation for 'Email' failed on the 'email' tag":
+			errMsg = "邮箱格式不正确"
+		default:
+			errMsg = "参数错误"
+		}
+		log.Printf("验证错误: %v\n", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": errMsg})
+		return
+	}
+
+	// 不允许修改超级管理员
+	if userID == 1 {
+		c.JSON(http.StatusForbidden, gin.H{"error": "不能修改超级管理员信息"})
+		return
+	}
+
+	// 调用更新服务
+	err = h.userService.UpdateProfile(
+		c.Request.Context(),
+		uint(userID),
+		req.Username,
+		req.Nickname,
+		req.Email,
+		req.Phone,
+		req.RoleID,
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "更新成功"})
+}
+
+// GetUserProfile 获取指定用户的基本信息
+func (h *UserHandler) GetUserProfile(c *gin.Context) {
+	// 获取路径参数中的用户ID
+	userID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的用户ID"})
+		return
+	}
+
+	// 获取用户信息
+	user, err := h.userService.GetUserByID(c.Request.Context(), uint(userID))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// 使用结构体来确保顺序
+	type UserProfile struct {
+		Username string `json:"username"`
+		Nickname string `json:"nickname"`
+		Email    string `json:"email"`
+		Phone    string `json:"phone"`
+		RoleID   uint   `json:"role_id"`
+	}
+
+	profile := UserProfile{
+		Username: user.Username,
+		Nickname: user.Nickname,
+		Email:    user.Email,
+		Phone:    user.Phone,
+		RoleID:   user.RoleID,
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"user": profile,
 	})
 }

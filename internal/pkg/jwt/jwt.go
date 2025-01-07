@@ -2,6 +2,7 @@ package jwt
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	jwt "github.com/golang-jwt/jwt/v4"
@@ -41,21 +42,16 @@ func GenerateToken(userID uint) (string, error) {
 // ParseToken 解析JWT token
 func ParseToken(tokenString string) (*Claims, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
-		return secretKey, nil
+		return []byte(secretKey), nil
 	})
 
 	if err != nil {
-		if ve, ok := err.(*jwt.ValidationError); ok {
-			if ve.Errors&jwt.ValidationErrorExpired != 0 {
-				return nil, ErrTokenExpired
-			}
-		}
-		return nil, ErrTokenInvalid
+		return nil, fmt.Errorf("解析token失败: %v", err)
 	}
 
 	if claims, ok := token.Claims.(*Claims); ok && token.Valid {
 		return claims, nil
 	}
 
-	return nil, ErrTokenInvalid
+	return nil, fmt.Errorf("无效的token")
 }

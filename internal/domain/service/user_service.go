@@ -3,9 +3,9 @@ package service
 import (
 	"context"
 	"errors"
+	"gva/internal/domain/cache"
 	"gva/internal/domain/entity"
 	"gva/internal/domain/repository"
-	"gva/internal/infrastructure/cache"
 	"gva/internal/pkg/jwt"
 	"gva/internal/pkg/utils"
 
@@ -22,24 +22,54 @@ import (
 
 // 定义登录相关的错误
 var (
-	ErrUserNotFound    = errors.New("用户不存在")
-	ErrUserDisabled    = errors.New("用户已被禁用")
-	ErrIncorrectPass   = errors.New("密码错误")
-	ErrUserNotVerified = errors.New("用户未通过审核")
+	ErrUserNotFound         = errors.New("用户不存在")
+	ErrUserDisabled         = errors.New("用户已被禁用")
+	ErrIncorrectPass        = errors.New("密码错误")
+	ErrUserNotVerified      = errors.New("用户未通过审核")
+	ErrUserFrozen           = errors.New("您的账号已被冻结，请联系客服")
+	ErrUserPhoneNotVerified = errors.New("您的账号未绑定手机号或手机号码格式不正确，请联系客服")
 )
 
 type UserService struct {
 	userRepo repository.UserRepository
 	db       *gorm.DB
-	cache    *cache.UserCache
+	cache    cache.UserCache
 }
 
-func NewUserService(userRepo repository.UserRepository, db *gorm.DB, cache *cache.UserCache) *UserService {
+func NewUserService(userRepo repository.UserRepository, db *gorm.DB, cache cache.UserCache) *UserService {
+	// 如果缓存为空，创建一个空实现
+	if cache == nil {
+		cache = &EmptyCache{}
+	}
 	return &UserService{
 		userRepo: userRepo,
 		db:       db,
 		cache:    cache,
 	}
+}
+
+// EmptyCache 空缓存实现
+type EmptyCache struct{}
+
+// 实现 cache.UserCache 接口
+func (c *EmptyCache) GetUserByID(ctx context.Context, id uint) (*entity.User, error) {
+	return nil, nil
+}
+
+func (c *EmptyCache) GetUserByUsername(ctx context.Context, username string) (*entity.User, error) {
+	return nil, nil
+}
+
+func (c *EmptyCache) SetUser(ctx context.Context, user *entity.User) error {
+	return nil
+}
+
+func (c *EmptyCache) DeleteUser(ctx context.Context, user *entity.User) error {
+	return nil
+}
+
+func (c *EmptyCache) DeleteUserByID(ctx context.Context, id uint) error {
+	return nil
 }
 
 func (s *UserService) Register(ctx context.Context, username, password string) error {
@@ -89,6 +119,16 @@ func (s *UserService) Login(ctx context.Context, username, password string) (*en
 		return nil, "", fmt.Errorf("查询用户失败: %v", err)
 	}
 
+	if user.Status == 2 {
+		// 您的账号已被冻结，请联系客服
+		return nil, "", ErrUserFrozen
+	}
+
+	if user.Phone == "" && len(user.Phone) < 11 && len(user.Phone) > 11 {
+		// 您的账号未绑定手机号或手机号码格式不正确，请联系客服
+		return nil, "", ErrUserPhoneNotVerified
+	}
+
 	// 将用户信息存入缓存
 	if err := s.cache.SetUser(ctx, user); err != nil {
 		log.Printf("缓存用户信息失败: %v", err)
@@ -102,7 +142,7 @@ func (s *UserService) Login(ctx context.Context, username, password string) (*en
 		return nil, "", ErrUserNotVerified
 	}
 
-	fmt.Println("user.Password", user.Password)
+	fmt.Println("222user.Password", user.Password)
 
 	// 验证密码
 	if !utils.CheckPassword(password, user.Password) {
@@ -124,18 +164,50 @@ func (s *UserService) Login(ctx context.Context, username, password string) (*en
 }
 
 // UpdateProfile 更新用户信息
-func (s *UserService) UpdateProfile(ctx context.Context, userID uint, nickname, email, phone, avatar string) error {
+func (s *UserService) UpdateProfile(ctx context.Context, userID uint, username, nickname, email, phone string, roleID uint) error {
+	// 获取用户信息
 	user, err := s.userRepo.FindByID(ctx, userID)
 	if err != nil {
-		return err
+		return fmt.Errorf("查询用户失败: %v", err)
 	}
 
+	// 如果用户名发生变化，检查新用户名是否已存在
+	if username != user.Username {
+		existingUser, err := s.userRepo.FindByUsername(ctx, username)
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("检查用户名失败: %v", err)
+		}
+		if existingUser != nil {
+			return fmt.Errorf("用户名 %s 已被使用", username)
+		}
+	}
+
+	// 如果要更新角色，先检查角色是否存在
+	if roleID > 0 {
+		var role entity.Role
+		if err := s.db.First(&role, roleID).Error; err != nil {
+			return fmt.Errorf("角色不存在或已被删除")
+		}
+		user.RoleID = roleID
+	}
+
+	// 更新用户信息
+	user.Username = username
 	user.Nickname = nickname
 	user.Email = email
 	user.Phone = phone
-	user.Avatar = avatar
 
-	return s.userRepo.Update(ctx, user)
+	// 保存更新
+	if err := s.userRepo.Update(ctx, user); err != nil {
+		return fmt.Errorf("更新用户信息失败: %v", err)
+	}
+
+	// 删除缓存
+	if err := s.cache.DeleteUserByID(ctx, userID); err != nil {
+		log.Printf("删除用户缓存失败: %v", err)
+	}
+
+	return nil
 }
 
 // ResetPassword 重置密码
@@ -331,4 +403,37 @@ func (s *UserService) GetUserWithRole(ctx context.Context, userID uint) (*entity
 	}
 
 	return &user, nil
+}
+
+// UpdateUserRole 更新用户角色
+func (s *UserService) UpdateUserRole(ctx context.Context, userID uint, roleID uint) error {
+	// 检查用户是否存在
+	var user entity.User
+	if err := s.db.First(&user, userID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("用户不存在")
+		}
+		return fmt.Errorf("查询用户失败: %v", err)
+	}
+
+	// 检查角色是否存在
+	var role entity.Role
+	if err := s.db.First(&role, roleID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("角色不存在")
+		}
+		return fmt.Errorf("查询角色失败: %v", err)
+	}
+
+	// 更新用户角色
+	if err := s.db.Model(&user).Update("role_id", roleID).Error; err != nil {
+		return fmt.Errorf("更新用户角色失败: %v", err)
+	}
+
+	// 删除用户缓存
+	if err := s.cache.DeleteUserByID(ctx, userID); err != nil {
+		log.Printf("删除用户缓存失败: %v", err)
+	}
+
+	return nil
 }

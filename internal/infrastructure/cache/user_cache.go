@@ -10,16 +10,20 @@ import (
 	"github.com/go-redis/redis/v8"
 )
 
-type UserCache struct {
+// RedisUserCache Redis实现的用户缓存
+type RedisUserCache struct {
 	rdb *redis.Client
 }
 
-func NewUserCache(rdb *redis.Client) *UserCache {
-	return &UserCache{rdb: rdb}
+func NewRedisUserCache(rdb *redis.Client) *RedisUserCache {
+	return &RedisUserCache{rdb: rdb}
 }
 
 // GetUserByID 通过ID获取用户
-func (c *UserCache) GetUserByID(ctx context.Context, id uint) (*entity.User, error) {
+func (c *RedisUserCache) GetUserByID(ctx context.Context, id uint) (*entity.User, error) {
+	if c.rdb == nil {
+		return nil, nil
+	}
 	key := fmt.Sprintf("user:id:%d", id)
 	data, err := c.rdb.Get(ctx, key).Bytes()
 	if err != nil {
@@ -38,7 +42,7 @@ func (c *UserCache) GetUserByID(ctx context.Context, id uint) (*entity.User, err
 }
 
 // GetUserByUsername 通过用户名获取用户
-func (c *UserCache) GetUserByUsername(ctx context.Context, username string) (*entity.User, error) {
+func (c *RedisUserCache) GetUserByUsername(ctx context.Context, username string) (*entity.User, error) {
 	key := fmt.Sprintf("user:username:%s", username)
 	data, err := c.rdb.Get(ctx, key).Bytes()
 	if err != nil {
@@ -57,7 +61,10 @@ func (c *UserCache) GetUserByUsername(ctx context.Context, username string) (*en
 }
 
 // SetUser 缓存用户信息
-func (c *UserCache) SetUser(ctx context.Context, user *entity.User) error {
+func (c *RedisUserCache) SetUser(ctx context.Context, user *entity.User) error {
+	if c.rdb == nil {
+		return nil
+	}
 
 	// 设置两个缓存键，一个用ID索引，一个用用户名索引
 	idKey := fmt.Sprintf("user:id:%d", user.ID)
@@ -75,7 +82,7 @@ func (c *UserCache) SetUser(ctx context.Context, user *entity.User) error {
 }
 
 // DeleteUser 删除用户缓存
-func (c *UserCache) DeleteUser(ctx context.Context, user *entity.User) error {
+func (c *RedisUserCache) DeleteUser(ctx context.Context, user *entity.User) error {
 	idKey := fmt.Sprintf("user:id:%d", user.ID)
 	usernameKey := fmt.Sprintf("user:username:%s", user.Username)
 
@@ -87,7 +94,10 @@ func (c *UserCache) DeleteUser(ctx context.Context, user *entity.User) error {
 }
 
 // DeleteUserByID 通过ID删除用户缓存
-func (c *UserCache) DeleteUserByID(ctx context.Context, id uint) error {
+func (c *RedisUserCache) DeleteUserByID(ctx context.Context, id uint) error {
+	if c.rdb == nil {
+		return nil
+	}
 	// 先获取用户信息，以便删除username索引
 	user, err := c.GetUserByID(ctx, id)
 	if err != nil {

@@ -44,4 +44,8 @@ uploads/
 storage/exports/*
 storage/uploads/*
 !storage/exports/.gitkeep
-!storage/uploads/.gitkeep 
+!storage/uploads/.gitkeep
+
+tmp/
+.air.toml
+air.log 

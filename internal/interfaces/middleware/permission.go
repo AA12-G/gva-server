@@ -1,7 +1,7 @@
 package middleware
 
 import (
-	"fmt"
+	"log"
 	"net/http"
 
 	"gva/internal/domain/service"
@@ -9,23 +9,29 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func CheckPermission(permissionCode string) gin.HandlerFunc {
+func CheckPermission(permission string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		fmt.Printf("\n=== 权限检查 ===\n")
-		fmt.Printf("检查权限代码: %s\n", permissionCode)
+		log.Printf("检查权限: %s, 路径: %s", permission, c.Request.URL.Path)
 
-		userID, exists := c.Get("userID")
+		// 从上下文获取用户ID
+		userIDInterface, exists := c.Get("userID")
 		if !exists {
-			fmt.Printf("未找到用户ID\n")
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "未认证"})
 			c.Abort()
 			return
 		}
-		fmt.Printf("用户ID: %v\n", userID)
+
+		// 类型断言，确保安全转换
+		userID, ok := userIDInterface.(uint)
+		if !ok {
+			log.Printf("用户ID类型错误: %T", userIDInterface)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "用户ID类型错误"})
+			c.Abort()
+			return
+		}
 
 		permissionService, exists := c.Get("permissionService")
 		if !exists {
-			fmt.Printf("未找到权限服务\n")
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "权限服务未初始化"})
 			c.Abort()
 			return
@@ -33,10 +39,9 @@ func CheckPermission(permissionCode string) gin.HandlerFunc {
 
 		hasPermission := permissionService.(*service.PermissionService).HasPermission(
 			c.Request.Context(),
-			userID.(uint),
-			permissionCode,
+			userID,
+			permission,
 		)
-		fmt.Printf("权限检查结果: %v\n", hasPermission)
 
 		if !hasPermission {
 			c.JSON(http.StatusForbidden, gin.H{"error": "权限不足"})
