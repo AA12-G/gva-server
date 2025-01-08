@@ -570,3 +570,68 @@ func (h *UserHandler) GetUserProfile(c *gin.Context) {
 		"user": profile,
 	})
 }
+
+// RestoreUser 恢复已删除的用户
+func (h *UserHandler) RestoreUser(c *gin.Context) {
+	userID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的用户ID"})
+		return
+	}
+
+	if err := h.userService.RestoreUser(c.Request.Context(), uint(userID)); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "用户恢复成功"})
+}
+
+// CreateUser 创建用户
+func (h *UserHandler) CreateUser(c *gin.Context) {
+	var req struct {
+		Username string `json:"username" binding:"required,min=2,max=32"`
+		Password string `json:"password" binding:"omitempty,min=6,max=32"` // 可选密码字段
+		Nickname string `json:"nickname"`
+		Email    string `json:"email" binding:"omitempty,email"`
+		Phone    string `json:"phone" binding:"omitempty,numeric,len=11"`
+		RoleID   uint   `json:"role_id"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		var errMsg string
+		switch {
+		case strings.Contains(err.Error(), "'Username' Error:Field validation"):
+			errMsg = "用户名长度必须在2-32个字符之间"
+		case strings.Contains(err.Error(), "'Password' Error:Field validation"):
+			errMsg = "密码长度必须在6-32个字符之间"
+		case err.Error() == "Key: 'Phone' Error:Field validation for 'Phone' failed on the 'len' tag":
+			errMsg = "手机号必须是11位数字"
+		case err.Error() == "Key: 'Phone' Error:Field validation for 'Phone' failed on the 'numeric' tag":
+			errMsg = "手机号只能包含数字"
+		case err.Error() == "Key: 'Email' Error:Field validation for 'Email' failed on the 'email' tag":
+			errMsg = "邮箱格式不正确"
+		default:
+			errMsg = "参数错误"
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": errMsg})
+		return
+	}
+
+	// 调用服务创建用户
+	err := h.userService.CreateUser(
+		c.Request.Context(),
+		req.Username,
+		req.Password,
+		req.Nickname,
+		req.Email,
+		req.Phone,
+		req.RoleID,
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "创建成功"})
+}

@@ -86,9 +86,11 @@ func InitRouter(db *gorm.DB, rdb *redis.Client, userService *service.UserService
 			userManage.GET("/:id/profile", userHandler.GetUserProfile)  // 获取指定用户信息
 			userManage.PUT("/:id/profile", userHandler.UpdateUser)      // 更新指定用户信息
 			userManage.PUT("/:id/status", userHandler.UpdateUserStatus) // 修改指定用户状态
-			userManage.DELETE("/:id", userHandler.DeleteUser)
-			userManage.GET("/export", userHandler.ExportUsers)
-			userManage.POST("/import", userHandler.ImportUsers)
+			userManage.DELETE("/:id", userHandler.DeleteUser)           // 删除指定用户
+			userManage.GET("/export", userHandler.ExportUsers)          // 导出用户数据
+			userManage.POST("/import", userHandler.ImportUsers)         // 导入用户数据
+			userManage.PUT("/:id/restore", userHandler.RestoreUser)     // 恢复已删除的用户
+			userManage.POST("", userHandler.CreateUser)                 // 创建用户
 		}
 
 		// 权限管理相关（需要权限管理权限）

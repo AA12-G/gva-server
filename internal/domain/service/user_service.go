@@ -303,16 +303,15 @@ func (s *UserService) UpdateUserStatus(ctx context.Context, userID uint, status 
 	return nil
 }
 
-// DeleteUser 删除用户（软删除）
+// DeleteUser 删除用户（硬删除）
 func (s *UserService) DeleteUser(ctx context.Context, userID uint) error {
-	// 先获取用户信息，用于删除缓存
-	_, err := s.userRepo.FindByID(ctx, userID)
-	if err != nil {
+	// 先检查用户是否存在
+	if err := s.db.First(&entity.User{}, userID).Error; err != nil {
 		return fmt.Errorf("用户不存在: %v", err)
 	}
 
-	// 使用 GORM 的软删除功能
-	if err := s.db.Delete(&entity.User{}, userID).Error; err != nil {
+	// 使用 Unscoped 来执行硬删除
+	if err := s.db.Unscoped().Delete(&entity.User{}, userID).Error; err != nil {
 		return fmt.Errorf("删除用户失败: %v", err)
 	}
 
@@ -433,6 +432,80 @@ func (s *UserService) UpdateUserRole(ctx context.Context, userID uint, roleID ui
 	// 删除用户缓存
 	if err := s.cache.DeleteUserByID(ctx, userID); err != nil {
 		log.Printf("删除用户缓存失败: %v", err)
+	}
+
+	return nil
+}
+
+// RestoreUser 恢复已删除的用户
+func (s *UserService) RestoreUser(ctx context.Context, userID uint) error {
+	// 使用 Unscoped 查找被删除的用户
+	var user entity.User
+	if err := s.db.Unscoped().First(&user, userID).Error; err != nil {
+		return fmt.Errorf("用户不存在: %v", err)
+	}
+
+	// 检查用户是否已被删除
+	if user.DeletedAt.Time.IsZero() {
+		return fmt.Errorf("用户未被删除")
+	}
+
+	// 恢复用户
+	if err := s.db.Unscoped().Model(&user).Update("deleted_at", nil).Error; err != nil {
+		return fmt.Errorf("恢复用户失败: %v", err)
+	}
+
+	// 更新缓存
+	if err := s.cache.SetUser(ctx, &user); err != nil {
+		log.Printf("更新用户缓存失败: %v", err)
+	}
+
+	return nil
+}
+
+// CreateUser 创建用户
+func (s *UserService) CreateUser(ctx context.Context, username, password, nickname, email, phone string, roleID uint) error {
+	// 检查用户名是否已存在
+	existingUser, err := s.userRepo.FindByUsername(ctx, username)
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return fmt.Errorf("检查用户名失败: %v", err)
+	}
+	if existingUser != nil {
+		return fmt.Errorf("用户名 %s 已存在", username)
+	}
+
+	// 检查角色是否存在
+	if roleID > 0 {
+		var role entity.Role
+		if err := s.db.First(&role, roleID).Error; err != nil {
+			return fmt.Errorf("角色不存在或已被删除")
+		}
+	}
+
+	// 如果没有提供密码，使用默认密码
+	if password == "" {
+		password = "123456"
+	}
+
+	// 加密密码
+	hashedPassword, err := utils.HashPassword(password)
+	if err != nil {
+		return fmt.Errorf("生成密码失败: %v", err)
+	}
+
+	// 创建用户
+	user := &entity.User{
+		Username: username,
+		Password: hashedPassword,
+		Nickname: nickname,
+		Email:    email,
+		Phone:    phone,
+		RoleID:   roleID,
+		Status:   1, // 默认启用
+	}
+
+	if err := s.userRepo.Create(ctx, user); err != nil {
+		return fmt.Errorf("创建用户失败: %v", err)
 	}
 
 	return nil
