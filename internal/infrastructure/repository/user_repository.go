@@ -52,8 +52,8 @@ func (r *userRepository) List(ctx context.Context, page, size int, keyword strin
 
 	// 构建查询条件
 	if keyword != "" {
-		db = db.Where("username = ? OR nickname LIKE ? OR email LIKE ?",
-			keyword, "%"+keyword+"%", "%"+keyword+"%")
+		db = db.Where("username LIKE ? OR nickname LIKE ? OR email LIKE ? OR phone LIKE ?",
+			"%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%")
 	}
 	if status != nil {
 		db = db.Where("status = ?", *status)

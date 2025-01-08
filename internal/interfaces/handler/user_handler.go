@@ -258,17 +258,17 @@ func (h *UserHandler) GetUserInfo(c *gin.Context) {
 	})
 }
 
-// ListUsers 获取用户列表
+// ListUsers 获取用户列表（支持搜索）
 func (h *UserHandler) ListUsers(c *gin.Context) {
 	var req struct {
 		Page     int    `form:"page" binding:"omitempty,min=1"`
 		PageSize int    `form:"page_size" binding:"omitempty,min=1,max=100"`
-		Keyword  string `form:"keyword"`
-		Status   *int   `form:"status"`
+		Keyword  string `form:"keyword"` // 搜索关键词
+		Status   *int   `form:"status"`  // 用户状态
+		RoleID   *uint  `form:"role_id"` // 角色ID
 	}
 
 	if err := c.ShouldBindQuery(&req); err != nil {
-		fmt.Printf("验证错误: %v\n", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
 		return
 	}
@@ -278,22 +278,21 @@ func (h *UserHandler) ListUsers(c *gin.Context) {
 		req.Page = 1
 	}
 	if req.PageSize <= 0 {
-		req.PageSize = 10 // 默认每页10条
+		req.PageSize = 10
 	}
 
-	// 添加请求参数日志
-	fmt.Printf("查询参数: page=%d, pageSize=%d, keyword=%s, status=%v\n",
-		req.Page, req.PageSize, req.Keyword, req.Status)
-
-	users, total, err := h.userService.ListUsers(c.Request.Context(), req.Page, req.PageSize, req.Keyword, req.Status)
+	// 调用服务层获取数据
+	users, total, err := h.userService.ListUsers(
+		c.Request.Context(),
+		req.Page,
+		req.PageSize,
+		req.Keyword,
+		req.Status,
+	)
 	if err != nil {
-		fmt.Printf("查询错误: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-
-	// 添加结果日志
-	fmt.Printf("查询结果: 总数=%d, 返回记录数=%d\n", total, len(users))
 
 	c.JSON(http.StatusOK, gin.H{
 		"users": users,
