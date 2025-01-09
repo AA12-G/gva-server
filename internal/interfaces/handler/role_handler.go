@@ -6,6 +6,7 @@ import (
 	"gva/internal/domain/service"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -86,6 +87,13 @@ func (h *RoleHandler) GetRole(c *gin.Context) {
 
 	role, err := h.roleService.GetRoleByID(c.Request.Context(), uint(roleID))
 	if err != nil {
+		if err.Error() == "角色不存在" {
+			c.JSON(http.StatusNotFound, gin.H{
+				"code":  http.StatusNotFound,
+				"error": err.Error(),
+			})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"code":  http.StatusInternalServerError,
 			"error": fmt.Sprintf("获取角色信息失败: %v", err),
@@ -143,8 +151,9 @@ func (h *RoleHandler) CreateRole(c *gin.Context) {
 	})
 }
 
-// UpdateRole 更新角色
+// UpdateRole 更新角色信息
 func (h *RoleHandler) UpdateRole(c *gin.Context) {
+	// 获取角色ID
 	roleID, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -154,12 +163,13 @@ func (h *RoleHandler) UpdateRole(c *gin.Context) {
 		return
 	}
 
+	// 绑定请求参数
 	var req struct {
-		Name        string `json:"name"`
-		Code        string `json:"code"`
+		Name        string `json:"name" binding:"required,min=2,max=50"`
+		Code        string `json:"code" binding:"required,min=2,max=50"`
 		Description string `json:"description"`
 		Sort        int    `json:"sort"`
-		Status      int    `json:"status"`
+		Status      int    `json:"status" binding:"omitempty,oneof=0 1"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -170,6 +180,7 @@ func (h *RoleHandler) UpdateRole(c *gin.Context) {
 		return
 	}
 
+	// 构建角色对象
 	role := &entity.Role{
 		Name:        req.Name,
 		Code:        req.Code,
@@ -178,7 +189,22 @@ func (h *RoleHandler) UpdateRole(c *gin.Context) {
 		Status:      req.Status,
 	}
 
+	// 调用服务更新角色
 	if err := h.roleService.UpdateRole(c.Request.Context(), uint(roleID), role); err != nil {
+		if err.Error() == "角色不存在" {
+			c.JSON(http.StatusNotFound, gin.H{
+				"code":  http.StatusNotFound,
+				"error": err.Error(),
+			})
+			return
+		}
+		if strings.Contains(err.Error(), "已存在") {
+			c.JSON(http.StatusConflict, gin.H{
+				"code":  http.StatusConflict,
+				"error": err.Error(),
+			})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"code":  http.StatusInternalServerError,
 			"error": fmt.Sprintf("更新角色失败: %v", err),

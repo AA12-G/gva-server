@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"gva/internal/domain/entity"
 
@@ -66,11 +67,14 @@ func (s *RoleService) GetAllRoles(ctx context.Context) ([]entity.Role, error) {
 	return roles, nil
 }
 
-// GetRoleByID 通过ID获取角色
+// GetRoleByID 根据ID获取角色信息
 func (s *RoleService) GetRoleByID(ctx context.Context, id uint) (*entity.Role, error) {
 	var role entity.Role
 	if err := s.db.First(&role, id).Error; err != nil {
-		return nil, fmt.Errorf("获取角色失败: %v", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("角色不存在")
+		}
+		return nil, fmt.Errorf("查询角色失败: %v", err)
 	}
 	return &role, nil
 }
@@ -80,9 +84,47 @@ func (s *RoleService) CreateRole(ctx context.Context, role *entity.Role) error {
 	return s.db.Create(role).Error
 }
 
-// UpdateRole 更新角色
+// UpdateRole 更新角色信息
 func (s *RoleService) UpdateRole(ctx context.Context, id uint, role *entity.Role) error {
-	return s.db.Model(&entity.Role{}).Where("id = ?", id).Updates(role).Error
+	// 检查角色是否存在
+	var existingRole entity.Role
+	if err := s.db.First(&existingRole, id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("角色不存在")
+		}
+		return fmt.Errorf("查询角色失败: %v", err)
+	}
+
+	// 如果修改了角色编码，检查新编码是否已存在
+	if role.Code != existingRole.Code {
+		var count int64
+		if err := s.db.Model(&entity.Role{}).Where("code = ? AND id != ?", role.Code, id).Count(&count).Error; err != nil {
+			return fmt.Errorf("检查角色编码失败: %v", err)
+		}
+		if count > 0 {
+			return fmt.Errorf("角色编码 %s 已存在", role.Code)
+		}
+	}
+
+	// 如果未提供状态，默认设置为1
+	if role.Status == 0 {
+		role.Status = 1
+	}
+
+	// 更新角色信息
+	updates := map[string]interface{}{
+		"name":        role.Name,
+		"code":        role.Code,
+		"description": role.Description,
+		"sort":        role.Sort,
+		"status":      role.Status,
+	}
+
+	if err := s.db.Model(&existingRole).Updates(updates).Error; err != nil {
+		return fmt.Errorf("更新角色失败: %v", err)
+	}
+
+	return nil
 }
 
 // DeleteRole 删除角色
